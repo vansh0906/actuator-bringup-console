@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  firmware:
+    name: Firmware (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build firmware core, simulator and unit tests
+        run: |
+          cmake -S firmware -B firmware/build -DCMAKE_BUILD_TYPE=Release
+          cmake --build firmware/build -j4
+      - name: Unit tests (GoogleTest)
+        run: ctest --test-dir firmware/build --output-on-failure
+      - name: Unit tests under AddressSanitizer + UBSan
+        if: runner.os == 'Linux'
+        run: |
+          cmake -S firmware -B firmware/build-asan -DCMAKE_BUILD_TYPE=Debug -DENABLE_SANITIZERS=ON
+          cmake --build firmware/build-asan -j4
+          ctest --test-dir firmware/build-asan --output-on-failure
+
+  console:
+    name: Console + integration + GUI
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Qt runtime libraries (offscreen)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libegl1 libgl1 libxkbcommon0 libfontconfig1 libdbus-1-3 libglib2.0-0
+      - name: Build the simulator
+        run: |
+          cmake -S firmware -B firmware/build -DBUILD_TESTS=OFF
+          cmake --build firmware/build -j4 --target actuator_sim
+      - name: Install the console
+        run: pip install -e "./console[gui,dev,serial]"
+      - name: Tests (protocol, cantools cross-check, simulator integration, ROS driver logic, GUI)
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: pytest console/tests -v
+      - name: Headless bring-up test of both joints
+        run: |
+          ./firmware/build/actuator_sim --port 29536 --state-dir /tmp --quiet &
+          sleep 1
+          bringup test --report-dir reports
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bringup-reports
+          path: reports/
+
+  esp32:
+    name: ESP32 firmware build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: arduino/setup-arduino-cli@v2
+      - name: Install the ESP32 core
+        run: |
+          URL=https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          arduino-cli core update-index --additional-urls $URL
+          arduino-cli core install esp32:esp32 --additional-urls $URL
+      - name: Compile the sketch
+        run: |
+          sh firmware/esp32/copy_core.sh
+          arduino-cli compile --fqbn esp32:esp32:esp32 firmware/esp32/actuator_node
+
+  ros2:
+    name: ROS 2 Humble driver (Docker)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the image
+        run: docker build -f docker/ros2.Dockerfile -t actuator-ros2 .
+      - name: Simulator -> driver -> topics and services
+        run: docker run --rm actuator-ros2 /ws/src/actuator_driver/test/ci_check.sh

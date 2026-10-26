@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "actuator-bringup"
+version = "1.0.0"
+description = "Bring-up, calibration and diagnostics console for CAN smart actuators"
+requires-python = ">=3.10"
+dependencies = ["PyYAML>=6"]
+
+[project.optional-dependencies]
+gui = ["PySide6>=6.5", "pyqtgraph>=0.13", "numpy"]
+serial = ["pyserial>=3.5"]
+dev = ["pytest>=7", "cantools>=39"]
+
+[project.scripts]
+bringup = "bringup.cli:main"
+bringup-gui = "bringup.gui.app:main"
+
+[tool.setuptools]
+packages = ["bringup", "bringup.gui"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

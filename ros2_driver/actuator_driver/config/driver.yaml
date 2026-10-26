@@ -1,0 +1,9 @@
+actuator_driver:
+  ros__parameters:
+    url: "tcp://localhost:29536"
+    node_ids: [1, 2]
+    joint_names: ["joint1", "joint2"]
+    command_mode: "velocity"     # velocity | position | current
+    publish_rate: 100.0          # Hz, /joint_states
+    command_timeout: 0.5         # s without a command -> joints stop
+    torque_constant: 4.0         # Nm per A at the joint (0.08 Nm/A x 50:1)

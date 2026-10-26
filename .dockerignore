@@ -1,0 +1,7 @@
+**/build
+**/build-*
+**/__pycache__
+**/.venv
+console/recordings
+console/reports
+*.zip

@@ -1,0 +1,18 @@
+# builds
+firmware/build*/
+build/
+__pycache__/
+*.egg-info/
+.venv/
+.pytest_cache/
+
+# generated at run time
+recordings/
+reports/
+console/recordings/
+console/reports/
+node*_params.bin
+
+# copied in by firmware/esp32/copy_core.sh
+firmware/esp32/actuator_node/*.cpp
+firmware/esp32/actuator_node/*.hpp
